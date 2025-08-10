@@ -1,22 +1,29 @@
-import { createSignal } from "solid-js";
+import { createSignal, onMount } from "solid-js";
 import { Verb } from "@/types";
 import { verbs as data } from "@/data";
+import { useAudio } from "@/hooks/useAudio";
 
 export function RandomVerb(props: Props) {
 	const [status, setStatus] = createSignal<"ASKING" | "DONE" | "FAILD">(
 		"ASKING"
 	);
-	const [verbs] = createSignal<Verb[]>(data);
 	const [spanishAnswer, setSpanishAnswer] = createSignal<string>("");
 	const [pastAnswer, setPastAnswer] = createSignal<string>("");
 	const [participleAnswer, setParticipleAnswer] = createSignal<string>("");
+	const [isVisible, setIsVisible] = createSignal(false);
+	const [showSuccess, setShowSuccess] = createSignal(false);
+	const [showFailure, setShowFailure] = createSignal(false);
 
-	const total = () => verbs().length;
+	const { playSuccess, playFailure, isMuted, toggleMute } = useAudio();
+
+	const total = () => data.length;
 	const randomIndex = () =>
 		total() > 0 ? Math.floor(Math.random() * total()) : 0;
-	const [currentVerb, setCurrentVerb] = createSignal<Verb>(
-		verbs()[randomIndex()]
-	);
+	const [currentVerb, setCurrentVerb] = createSignal<Verb>(data[randomIndex()]);
+
+	onMount(() => {
+		setTimeout(() => setIsVisible(true), 100);
+	});
 
 	const submit = () => {
 		const answer1 = checkAnswer(spanishAnswer(), currentVerb().spanish);
@@ -28,9 +35,13 @@ export function RandomVerb(props: Props) {
 		if (done) {
 			props.done();
 			setStatus("DONE");
+			setTimeout(() => setShowSuccess(true), 100);
+			playSuccess();
 		} else {
 			props.faild();
 			setStatus("FAILD");
+			setTimeout(() => setShowFailure(true), 100);
+			playFailure();
 		}
 	};
 
@@ -57,11 +68,19 @@ export function RandomVerb(props: Props) {
 		s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 	const reset = () => {
-		setStatus("ASKING");
-		setCurrentVerb(verbs()[randomIndex()]);
-		setSpanishAnswer("");
-		setPastAnswer("");
-		setParticipleAnswer("");
+		setIsVisible(false);
+		setShowSuccess(false);
+		setShowFailure(false);
+		setTimeout(() => {
+			setStatus("ASKING");
+			setCurrentVerb(data[randomIndex()]);
+			setSpanishAnswer("");
+			setPastAnswer("");
+			setParticipleAnswer("");
+			setTimeout(() => {
+				setIsVisible(true);
+			}, 50);
+		}, 200);
 	};
 
 	const showCorrectAnswer = (value: string | string[]) => {
@@ -72,14 +91,40 @@ export function RandomVerb(props: Props) {
 		return value;
 	};
 
+	const cardAnimationClasses = () =>
+		`transition-all duration-500 ease-out ${
+			isVisible() ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+		}`;
+
+	const successAnimationClasses = () =>
+		`transition-all duration-700 ease-out ${
+			showSuccess()
+				? "opacity-100 scale-100 rotate-0"
+				: "opacity-0 scale-95 rotate-2"
+		}`;
+
+	const failureAnimationClasses = () =>
+		`transition-all duration-500 ease-out ${
+			showFailure() ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+		}`;
+
 	return (
 		<>
 			{status() === "ASKING" && (
-				<div class="w-full max-w-md mx-auto rounded-xl border border-neutral-800 bg-neutral-900/80 backdrop-blur shadow-lg">
-					<div class="px-6 py-4 border-b border-neutral-800">
-						<h2 class="text-neutral-100 text-lg font-semibold text-center tracking-tight">
+				<div
+					class={`w-full max-w-md mx-auto rounded-xl border border-neutral-800 bg-neutral-900/80 backdrop-blur shadow-lg ${cardAnimationClasses()}`}
+				>
+					<div class="px-6 py-4 border-b border-neutral-800 flex justify-between items-center">
+						<h2 class="text-neutral-100 text-lg font-semibold tracking-tight">
 							Verb
 						</h2>
+						<button
+							onClick={toggleMute}
+							class="p-2 text-neutral-400 hover:text-neutral-100 transition-colors duration-200 rounded-lg hover:bg-neutral-800"
+							title={isMuted() ? "Activar sonido" : "Silenciar"}
+						>
+							{isMuted() ? "🔇" : "🔊"}
+						</button>
 					</div>
 					<div class="px-6 py-8">
 						<div class="text-center space-y-6">
@@ -88,7 +133,7 @@ export function RandomVerb(props: Props) {
 									Present
 								</p>
 								<p class="text-4xl font-bold text-neutral-50">
-									{currentVerb().present ?? "—"}
+									{currentVerb().present}
 								</p>
 							</div>
 
@@ -151,7 +196,9 @@ export function RandomVerb(props: Props) {
 			)}
 
 			{status() === "DONE" && (
-				<div class="w-full max-w-md mx-auto rounded-xl border border-green-700 bg-neutral-900/80 backdrop-blur shadow-lg">
+				<div
+					class={`w-full max-w-md mx-auto rounded-xl border border-green-700 bg-neutral-900/80 backdrop-blur shadow-lg ${cardAnimationClasses()} ${successAnimationClasses()}`}
+				>
 					<div class="px-6 py-4 border-b border-green-700 bg-green-900/20">
 						<h2 class="text-green-400 text-lg font-semibold text-center tracking-tight">
 							¡Correcto!
@@ -159,7 +206,11 @@ export function RandomVerb(props: Props) {
 					</div>
 					<div class="px-6 py-8">
 						<div class="text-center space-y-6">
-							<div class="space-y-4">
+							<div
+								class={`space-y-4 transition-all duration-700 ease-out ${
+									showSuccess() ? "scale-110" : "scale-100"
+								}`}
+							>
 								<div class="text-6xl text-green-400">🎉</div>
 								<p class="text-neutral-100 text-lg">¡Excelente trabajo!</p>
 								<p class="text-neutral-400">
@@ -206,7 +257,9 @@ export function RandomVerb(props: Props) {
 			)}
 
 			{status() === "FAILD" && (
-				<div class="w-full max-w-md mx-auto rounded-xl border border-red-700 bg-neutral-900/80 backdrop-blur shadow-lg">
+				<div
+					class={`w-full max-w-md mx-auto rounded-xl border border-red-700 bg-neutral-900/80 backdrop-blur shadow-lg ${cardAnimationClasses()} ${failureAnimationClasses()}`}
+				>
 					<div class="px-6 py-4 border-b border-red-700 bg-red-900/20">
 						<h2 class="text-red-400 text-lg font-semibold text-center tracking-tight">
 							Incorrecto
@@ -214,7 +267,11 @@ export function RandomVerb(props: Props) {
 					</div>
 					<div class="px-6 py-8">
 						<div class="text-center space-y-6">
-							<div class="space-y-4">
+							<div
+								class={`space-y-4 transition-all duration-500 ease-out ${
+									showFailure() ? "scale-105" : "scale-100"
+								}`}
+							>
 								<div class="text-6xl text-red-400">❌</div>
 								<p class="text-neutral-100 text-lg">No te rindas</p>
 								<p class="text-neutral-400">
